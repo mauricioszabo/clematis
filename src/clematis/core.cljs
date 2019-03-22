@@ -1,6 +1,5 @@
 (ns clematis.core
-  (:require [nvim.commands :as cmds]))
-  ;           [nvim.parser :as parser]))
+  (:require [clematis.commands :as cmds]))
 
 (defonce nvim (atom nil))
 
@@ -9,10 +8,8 @@
 
 (defn main [^js plugin]
   (reset! nvim (.-nvim plugin))
-  (.. ^js @nvim
-      (outWrite (str "And I say hey, ey,eyeye! " (gensym) "\n"))
-      (then
-       #(cmds/open-window! @nvim nil "+ {:foo 10 :bar 20}"))))
+  (reset! cmds/nvim (.-nvim plugin))
+  (cmds/open-window! @nvim nil "+ {:foo 10 :bar 20}"))
 
 (defn start
   "Hook to start. Also used as a hook for hot code reload."
