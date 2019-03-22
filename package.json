@@ -1,0 +1,18 @@
+{
+  "name": "nvim-plug",
+  "version": "1.0.0",
+  "description": "An example node plugin",
+  "main": "index.js",
+  "devDependencies": {
+    "shadow-cljs": "^2.8.19",
+    "ws": "^6.2.0"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/neovim/node-client.git"
+  },
+  "dependencies": {
+    "domjs": "^0.3.2"
+  }
+}
