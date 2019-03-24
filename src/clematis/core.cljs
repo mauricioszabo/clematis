@@ -6,7 +6,9 @@
 (defn- echo []
   (. ^js @nvim outWrite "And I say hey,ey,eyeye! \n"))
 
-(defn main [^js plugin]
+(defn main [^js plugin a1 a2]
+  (def a1 a1)
+  (def a2 a2)
   (reset! nvim (.-nvim plugin))
   (reset! cmds/nvim (.-nvim plugin))
   (cmds/open-window! @nvim nil "+ {:foo 10 :bar 20}"))
@@ -26,7 +28,7 @@
 (def expand-view (atom main))
 
 
-(def exports #js {:connect_socket #(@connect-socket %)
+(def exports #js {:connect_socket #(@connect-socket %1 %2 %3)
                   :connect_embedded #(@connect-embedded %)
                   :eval_selection #(@eval-selection %)
                   :eval_top_level #(@eval-top-level %)

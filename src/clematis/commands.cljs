@@ -17,17 +17,18 @@
     (request "nvim_open_win" #js [buffer enter (clj->js opts)])))
 
 (defn- with-buffer [^js nvim ^js buffer where text]
-  (.. buffer
-      (setLines (clj->js (str/split-lines text))
-                #js {:start 0 :end 0 :strictIndexing true})
-      (then #(. buffer setOption "modifiable" false))
-      (then #(new-window nvim buffer false {:relative "cursor"
-                                            :focusable true
-                                            :anchor "NW"
-                                            :width 50
-                                            :height 10
-                                            :row 0
-                                            :col 10}))))
+  (let [lines (cond-> text (string? text) str/split-lines)]
+    (.. buffer
+        (setLines (clj->js lines)
+                  #js {:start 0 :end 0 :strictIndexing true})
+        (then #(. buffer setOption "modifiable" false))
+        (then #(new-window nvim buffer false {:relative "cursor"
+                                              :focusable true
+                                              :anchor "NW"
+                                              :width 50
+                                              :height 10
+                                              :row 0
+                                              :col 10})))))
 
 (defn open-window! [^js nvim where text]
   (.. nvim
@@ -75,32 +76,29 @@
                      :clj-aux (:clj/aux res)
                      :commands (:editor/commands res)))))))
 
-(defn- new-dom [view]
-  (let [dom (new JSDOM
-              "<!doctype html><html><body>
-<style>
-a.chevron.closed::after {
-  content: \">\";
-}
-a.chevron.opened::after {
-  content: \"v\";
-}
-div.result div.row {
-  flex-direction: column;
-}
-</style>
-<div id='res'></div></body></html>"
-              #js {:runScripts "dangerously"
-                   :resources "usable"})]
+(defn- parse-specials [specials last-elem curr-text elem]
+  (let [txt-size (-> elem (nth 1) count)
+        curr-row (count curr-text)
+        fun (peek elem)]
+    (reduce (fn [specials col] (assoc specials [last-elem col] fun))
+            specials (range curr-row (+ curr-row txt-size)))))
 
-    (aset js/global "window" (.-window dom))
-    (r/render view (.. dom -window -document (querySelector "#res")))
-    dom))
+(defn- parse-elem [position lines specials]
+  (let [[elem text function] position
+        last-elem (-> lines count dec)
+        curr-text (peek lines)]
+    (case elem
+      :row (recur (rest position) (conj lines "") specials)
+      :text [(assoc lines last-elem (str curr-text text)) specials]
+      :button [(assoc lines last-elem (str curr-text " " text " "))
+               (parse-specials specials last-elem curr-text position)]
+      :expand [(assoc lines last-elem (str curr-text text " "))
+               (parse-specials specials last-elem curr-text position)]
+      (reduce (fn [[lines specials] position] (parse-elem position lines specials))
+              [lines specials] position))))
 
-#_#_#_
-(.. dom -window -document (querySelector "body") -innerHTML)
-(.. dom -window -document (querySelector "#res") -innerHTML)
-(.. dom -window -document (querySelector "#res") -textContent)
+(defn result->string [result-struct]
+  (parse-elem result-struct [] {}))
 
 #_
 (connect!)
@@ -110,24 +108,9 @@ div.result div.row {
                {}
                (fn [res]
                  (let [parsed (helpers/parse-result res)
-                       result (render/parse-result parsed (:clj-eval @state))
-                       view (render/view-for-result result)]
-                   (def parsed parsed)
-                   (def result result)
-                   (def view view)
-                   (def dom (new-dom view))
-                   (open-window! @nvim nil (pr-str view)))))
-
-#_
-(.. dom -window -document (querySelector "#res a") click)
-#_#_
-(r-server/render-to-string view)
-(r-server/render-to-static-markup view)
-
-#_
-(r/render (render/view-for-result result)
-          (.. dom -window -document (querySelector "#res")))
-#_
-(.. dom -window -document (querySelector "#res .children") -textContent)
-#_
-(.. dom -window -document (querySelector "body") -innerHTML)
+                       result (render/parse-result parsed (:clj-eval @state))]
+                   (->> result
+                        render/txt-for-result
+                        result->string
+                        first
+                        (open-window! @nvim nil)))))
