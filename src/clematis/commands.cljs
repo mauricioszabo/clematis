@@ -4,12 +4,8 @@
             [repl-tooling.editor-integration.connection :as conn]
             [repl-tooling.editor-helpers :as helpers]
             [repl-tooling.editor-integration.renderer :as render]
-            [reagent.core :as r]
-            [repl-tooling.eval :as eval]
-            [reagent.dom.server :as r-server]
-            ["jsdom" :refer [JSDOM] :as jsdom]))
+            [repl-tooling.eval :as eval]))
 
-; jsdom
 (defonce nvim (atom nil))
 
 (defn new-window [^js nvim buffer enter opts]
