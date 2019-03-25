@@ -2,7 +2,7 @@
   "name": "nvim-plug",
   "version": "1.0.0",
   "description": "An example node plugin",
-  "main": "index.js",
+  "main": "clematis.js",
   "devDependencies": {
     "shadow-cljs": "^2.8.19",
     "ws": "^6.2.0"
