@@ -15,6 +15,13 @@
   (. nvim
     (request "nvim_open_win" #js [buffer enter (clj->js opts)])))
 
+(defn- replace-buffer-text [^js buffer text]
+  (.. (. buffer setOption "modifiable" true)
+      (then #(.-length buffer))
+      (then #(. buffer setLines (clj->js text)
+               #js {:start 0 :end % :strictIndexing true}))
+      (then #(. buffer setOption "modifiable" false))))
+
 (defn- with-buffer [^js nvim ^js buffer where text]
   (let [lines (cond-> text (string? text) str/split-lines)]
     (.. buffer
@@ -34,16 +41,24 @@
       (createBuffer false true)
       (then #(with-buffer nvim % where text))))
 
-(defonce results (atom {:windows #{} :last-id nil}))
-(defn new-result! [^js nvim]
-  (let [w (open-window! nvim nil "...loading...")]
-    (. w (then #(swap! results update :windows conj w)))
-    w))
-
+(defonce results (atom {:windows #{}
+                        :buffers {}}))
 (defn clear-results! []
   (doseq [window (:windows @results)]
     (.close ^js window)
-    (swap! results update :windows disj window)))
+    (swap! results update :windows disj window))
+  (swap! results assoc :buffers {}))
+
+(defn new-result! [^js nvim]
+  (let [w (open-window! nvim nil "...loading...")
+        buffer (. w then #(.-buffer %))]
+    (. w then #(swap! results update :windows conj %))
+    (.. js/Promise
+        (all #js [buffer w])
+        (then (fn [[buffer window]]
+                (.setOption window "wrap" false)
+                (swap! results assoc-in [:buffers (.-id buffer) :window] window))))
+    w))
 
 (defonce state (atom {:clj-eval nil
                       :clj-aux nil
@@ -56,7 +71,7 @@
 (defn connect! [host port]
   (when-not (:clj-eval @state)
     (..
-      (conn/connect! "localhost" 9000
+      (conn/connect! host port
                      {:on-disconnect on-disconnect!
                       :on-stdout identity
                       :on-eval identity
@@ -102,42 +117,49 @@
 (defn result->string [result-struct]
   (parse-elem result-struct [] {}))
 
-; #_
-; (connect!)
-; #_
-; (eval/evaluate (:clj-eval @state)
-;                "(map str (range 100))"
-;                {}
-;                (fn [res]
-;                  (let [parsed (helpers/parse-result res)
-;                        result (render/parse-result parsed (:clj-eval @state))]
-;                    (->> result
-;                         render/txt-for-result
-;                         result->string
-;                         first
-;                         (open-window! @nvim nil)))))
-
 (defn- get-cur-position []
   (let [lines (.. @nvim -buffer (then #(.getLines %)))
         row (.eval @nvim "line('.')")
         col (.eval @nvim "col('.')")]
-    (. lines then (fn [lines]
-                   (. row then (fn [row] (. col then
-                                          (fn [col]
-                                              [(js->clj lines) (dec row) (dec col)]))))))))
+    (.. js/Promise
+        (all #js [(. lines then js->clj) (. row then dec) (. col then dec)])
+        (then js->clj))))
+
+(defn- replace-buffer [buffer-p string]
+  (.. buffer-p (then #(replace-buffer-text % string))))
+
+(defn- render-result-into-buffer [result buffer-p]
+  (let [[string specials] (-> result render/txt-for-result result->string)]
+    (. buffer-p then (fn [buffer]
+                       (swap! results update-in [:buffers (.-id buffer)]
+                              merge {:specials specials
+                                     :result result})))
+    (replace-buffer buffer-p string)))
 
 (defn evaluate-block []
-  (.. (get-cur-position)
-      (then (fn [[lines row col]]
-              (let [code (helpers/read-next (str/join "\n" lines) (inc row) (inc col))]
-                (eval/evaluate (:clj-eval @state)
-                             code
-                             {}
-                             (fn [res]
-                               (let [parsed (helpers/parse-result res)
-                                     result (render/parse-result parsed (:clj-eval @state))]
-                                 (->> result
-                                      render/txt-for-result
-                                      result->string
-                                      first
-                                      (open-window! @nvim nil))))))))))
+  (let [b (. (new-result! @nvim) then #(.-buffer %))]
+    (.. b
+        (then #(get-cur-position))
+        (then (fn [[lines row col]]
+                (let [code (helpers/read-next (str/join "\n" lines) (inc row) (inc col))]
+                  (eval/evaluate (:clj-eval @state)
+                                 code
+                                 {}
+                                 (fn [res]
+                                   (let [parsed (helpers/parse-result res)
+                                         result (render/parse-result parsed (:clj-eval @state))]
+                                     (render-result-into-buffer result b))))))))))
+
+(defn- run-fun-and-expand [fun buffer-p result]
+  (fun #(render-result-into-buffer result buffer-p))
+  (render-result-into-buffer result buffer-p))
+
+(defn expand-block [^js nvim]
+  (let [pos (get-cur-position)
+        cur-buffer (.-buffer nvim)]
+    (.. js/Promise
+        (all #js [pos cur-buffer])
+        (then (fn [[[_ row col] buffer]]
+                (let [{:keys [result specials]} (get-in @results [:buffers (.-id buffer)])]
+                  (some-> (get specials [row col])
+                          (run-fun-and-expand cur-buffer result))))))))

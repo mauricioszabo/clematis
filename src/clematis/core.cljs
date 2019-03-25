@@ -29,7 +29,7 @@
 (def eval-selection (atom main))
 (def eval-top-level (atom main))
 (def eval-block (atom #(main % cmds/evaluate-block)))
-(def expand-view (atom main))
+(def expand-view (atom #(main % (fn [] (cmds/expand-block @nvim)))))
 
 (def exports #js {:connect_socket #(@connect-socket %1 %2 %3)
                   :connect_embedded #(@connect-embedded %)
