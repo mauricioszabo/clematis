@@ -8,9 +8,10 @@ module.exports = plugin => {
     return cljs
   }
 
-  plugin.registerCommand('ConnnectSocketREPL', async () => {
-    cmds().connect_socket(plugin)
-  }, { sync: false });
+  plugin.registerCommand('ConnnectSocketREPL', async (params) => {
+    cmds().connect_socket(plugin, params)
+  }, { sync: false, nargs: '*'
+ });
   plugin.registerCommand('ConnnectEmbedded', () => {
     cmds().connect_embedded(plugin)
   }, { sync: false });
