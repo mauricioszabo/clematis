@@ -8,6 +8,9 @@
 
 (defonce nvim (atom nil))
 
+(defn info [text]
+  (. ^js @nvim outWrite (str text "\n")))
+
 (defn new-window [^js nvim buffer enter opts]
   (. nvim
     (request "nvim_open_win" #js [buffer enter (clj->js opts)])))
@@ -47,11 +50,14 @@
                       :cljs-eval nil
                       :commands nil}))
 
-(defn connect! []
+(defn- on-disconnect! []
+  (info "Disconnected from REPL"))
+
+(defn connect! [host port]
   (when-not (:clj-eval @state)
     (..
       (conn/connect! "localhost" 9000
-                     {:on-disconnect identity
+                     {:on-disconnect on-disconnect!
                       :on-stdout identity
                       :on-eval identity
                       :on-stderr identity
@@ -96,17 +102,42 @@
 (defn result->string [result-struct]
   (parse-elem result-struct [] {}))
 
-#_
-(connect!)
-#_
-(eval/evaluate (:clj-eval @state)
-               "(map str (range 100))"
-               {}
-               (fn [res]
-                 (let [parsed (helpers/parse-result res)
-                       result (render/parse-result parsed (:clj-eval @state))]
-                   (->> result
-                        render/txt-for-result
-                        result->string
-                        first
-                        (open-window! @nvim nil)))))
+; #_
+; (connect!)
+; #_
+; (eval/evaluate (:clj-eval @state)
+;                "(map str (range 100))"
+;                {}
+;                (fn [res]
+;                  (let [parsed (helpers/parse-result res)
+;                        result (render/parse-result parsed (:clj-eval @state))]
+;                    (->> result
+;                         render/txt-for-result
+;                         result->string
+;                         first
+;                         (open-window! @nvim nil)))))
+
+(defn- get-cur-position []
+  (let [lines (.. @nvim -buffer (then #(.getLines %)))
+        row (.eval @nvim "line('.')")
+        col (.eval @nvim "col('.')")]
+    (. lines then (fn [lines]
+                   (. row then (fn [row] (. col then
+                                          (fn [col]
+                                              [(js->clj lines) (dec row) (dec col)]))))))))
+
+(defn evaluate-block []
+  (.. (get-cur-position)
+      (then (fn [[lines row col]]
+              (let [code (helpers/read-next (str/join "\n" lines) (inc row) (inc col))]
+                (eval/evaluate (:clj-eval @state)
+                             code
+                             {}
+                             (fn [res]
+                               (let [parsed (helpers/parse-result res)
+                                     result (render/parse-result parsed (:clj-eval @state))]
+                                 (->> result
+                                      render/txt-for-result
+                                      result->string
+                                      first
+                                      (open-window! @nvim nil))))))))))
