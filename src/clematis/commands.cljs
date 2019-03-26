@@ -93,30 +93,6 @@
                      :clj-aux (:clj/aux res)
                      :commands (:editor/commands res)))))))
 
-(defn- parse-specials [specials last-elem curr-text elem]
-  (let [txt-size (-> elem (nth 1) count)
-        curr-row (count curr-text)
-        fun (peek elem)]
-    (reduce (fn [specials col] (assoc specials [last-elem col] fun))
-            specials (range curr-row (+ curr-row txt-size)))))
-
-(defn- parse-elem [position lines specials]
-  (let [[elem text function] position
-        last-elem (-> lines count dec)
-        curr-text (peek lines)]
-    (case elem
-      :row (recur (rest position) (conj lines "") specials)
-      :text [(assoc lines last-elem (str curr-text text)) specials]
-      :button [(assoc lines last-elem (str curr-text " " text " "))
-               (parse-specials specials last-elem curr-text position)]
-      :expand [(assoc lines last-elem (str curr-text text " "))
-               (parse-specials specials last-elem curr-text position)]
-      (reduce (fn [[lines specials] position] (parse-elem position lines specials))
-              [lines specials] position))))
-
-(defn result->string [result-struct]
-  (parse-elem result-struct [] {}))
-
 (defn- get-cur-position []
   (let [lines (.. @nvim -buffer (then #(.getLines %)))
         row (.eval @nvim "line('.')")
@@ -129,7 +105,7 @@
   (.. buffer-p (then #(replace-buffer-text % string))))
 
 (defn- render-result-into-buffer [result buffer-p]
-  (let [[string specials] (-> result render/txt-for-result result->string)]
+  (let [[string specials] (-> result render/txt-for-result render/repr->lines)]
     (. buffer-p then (fn [buffer]
                        (swap! results update-in [:buffers (.-id buffer)]
                               merge {:specials specials
