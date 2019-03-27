@@ -113,7 +113,8 @@
     (replace-buffer buffer-p string)))
 
 (defn evaluate-block []
-  (let [b (. (new-result! @nvim) then #(.-buffer %))]
+  (let [w (new-result! @nvim)
+        b (. w then #(.-buffer %))]
     (.. b
         (then #(get-cur-position))
         (then (fn [[lines row col]]
@@ -124,7 +125,13 @@
                                  (fn [res]
                                    (let [parsed (helpers/parse-result res)
                                          result (render/parse-result parsed (:clj-eval @state))]
-                                     (render-result-into-buffer result b))))))))))
+                                     (render-result-into-buffer result b)))))))
+        (then (fn []
+                (.. w
+                    (then #(aset @nvim "window" %))
+                    (then #(do
+                             (.command @nvim "map <buffer> <Return> :ClematisExpandView<CR>")
+                             (.command @nvim "map <buffer> o :ClematisExpandView<CR>")))))))))
 
 (defn- run-fun-and-expand [fun buffer-p result]
   (fun #(render-result-into-buffer result buffer-p))
