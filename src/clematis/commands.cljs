@@ -41,24 +41,13 @@
       (createBuffer false true)
       (then #(with-buffer nvim % where text))))
 
-(defonce results (atom {:windows #{}
-                        :buffers {}}))
-(defn clear-results! []
-  (doseq [window (:windows @results)]
-    (.close ^js window)
-    (swap! results update :windows disj window))
-  (swap! results assoc :buffers {}))
-
 (defn new-result! [^js nvim]
   (let [w (open-window! nvim nil "...loading...")
         buffer (. w then #(.-buffer %))]
-    ;FIXME
-    (. w then #(swap! results update :windows conj %))
     (.. js/Promise
         (all #js [buffer w])
         (then (fn [[buffer window]]
-                (.setOption window "wrap" false)
-                (swap! results assoc-in [:buffers (.-id buffer) :window] window))))
+                (.setOption window "wrap" false))))
     (.. w
         (then #(aset nvim "window" %))
         (then #(do
@@ -106,10 +95,11 @@
 (defn- replace-buffer [buffer-p string]
   (.. buffer-p (then #(replace-buffer-text % string))))
 
+(defonce commands-in-buffer (atom {}))
 (defn- render-result-into-buffer [result buffer-p]
   (let [[string specials] (-> result render/txt-for-result render/repr->lines)]
     (. buffer-p then (fn [buffer]
-                       (swap! results update-in [:buffers (.-id buffer)]
+                       (swap! commands-in-buffer update-in [:buffers (.-id buffer)]
                               merge {:specials specials
                                      :result result})))
     (replace-buffer buffer-p string)))
@@ -154,7 +144,8 @@
     (.. js/Promise
         (all #js [pos cur-buffer])
         (then (fn [[[_ row col] buffer]]
-                (let [{:keys [result specials]} (get-in @results [:buffers (.-id buffer)])]
+                (let [{:keys [result specials]} (get-in @commands-in-buffer
+                                                        [:buffers (.-id buffer)])]
                   (some-> (get specials [row col])
                           (run-fun-and-expand cur-buffer result))))))))
 
