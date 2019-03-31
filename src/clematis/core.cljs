@@ -27,7 +27,7 @@
 (def connect-socket (atom connect!))
 (def connect-embedded (atom main))
 (def eval-selection (atom main))
-(def eval-top-level (atom main))
+(def eval-top-level (atom #(main % cmds/evaluate-top-block)))
 (def eval-block (atom #(main % cmds/evaluate-block)))
 (def expand-view (atom #(main % (fn [] (cmds/expand-block @nvim)))))
 
@@ -36,4 +36,5 @@
                   :eval_selection #(@eval-selection %)
                   :eval_top_level #(@eval-top-level %)
                   :eval_block #(@eval-block %)
-                  :expand_view #(@expand-view %)})
+                  :expand_view #(@expand-view %)
+                  :disconnect #(main % cmds/disconnect!)})

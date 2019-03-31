@@ -15,6 +15,9 @@ module.exports = plugin => {
   plugin.registerCommand('ConnnectEmbedded', () => {
     cmds().connect_embedded(plugin)
   }, { sync: false });
+  plugin.registerCommand('DisconnectREPLS', () => {
+    cmds().disconnect(plugin)
+  }, { sync: false });
   plugin.registerCommand('EvalSelection', () => {
     cmds().eval_selection(plugin)
   }, { sync: false });
