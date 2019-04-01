@@ -27,7 +27,9 @@
     (.. buffer
         (setLines (clj->js lines)
                   #js {:start 0 :end 0 :strictIndexing true})
-        (then #(. buffer setOption "modifiable" false))
+        (then #(do
+                 (. buffer setOption "modifiable" false)
+                 (. buffer setOption "ft" "clojure")))
         (then #(new-window nvim buffer false {:relative "cursor"
                                               :focusable true
                                               :anchor "NW"
