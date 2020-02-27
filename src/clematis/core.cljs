@@ -22,7 +22,8 @@
   (reset! cmds/nvim (.-nvim plugin))
   (reset! nvim (.-nvim plugin))
   (let [[host port] (js->clj params)]
-    (cmds/connect! host (int port)
+    (.
+      (cmds/connect! host (int port))
       then #(cmds/info "Connected to Socket REPL"))))
 
 (def connect-socket (atom connect!))

@@ -87,6 +87,7 @@
                            :id nil}))
 
 (defn- on-start-eval [eval-id range]
+  (def wat eval-id)
   (when-let [existing-win ^js (:window @eval-state)]
     (.close existing-win))
   (let [window ^js (new-result! @nvim)]
@@ -107,6 +108,7 @@
     (replace-buffer buffer-p string)))
 
 (defn- on-end-eval [result eval-id range]
+  (prn :RES result)
   (when (and (= eval-id (:id @eval-state))
              (:window @eval-state))
     (let [win ^js (:window @eval-state)
@@ -130,9 +132,9 @@
                         :on-start-eval on-start-eval})
         (then (fn [res]
                 (swap! state assoc
-                       :clj-eval (:clj/repl res)
-                       :clj-aux (:clj/aux res)
-                       :commands (:editor/commands res)))))))
+                       :clj-eval (:clj/repl @res)
+                       :clj-aux (:clj/aux @res)
+                       :commands (:editor/commands @res)))))))
 
 (defn- get-cur-position []
   (let [lines (.. @nvim -buffer (then #(.getLines %)))
