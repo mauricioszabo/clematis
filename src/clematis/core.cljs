@@ -14,14 +14,15 @@
 (defn start
   "Hook to start. Also used as a hook for hot code reload."
   []
-  (. ^js @nvim outWrite "Reloaded Clematis \n")
-  (js/setTimeout #(. ^js @nvim outWrite "\n")
+  (cmds/info "Reloaded Clematis")
+  (js/setTimeout #(cmds/info "\n")
                  4000))
 
 (defn connect! [plugin params]
   (reset! cmds/nvim (.-nvim plugin))
+  (reset! nvim (.-nvim plugin))
   (let [[host port] (js->clj params)]
-    (. (cmds/connect! host (int port))
+    (cmds/connect! host (int port)
       then #(cmds/info "Connected to Socket REPL"))))
 
 (def connect-socket (atom connect!))
