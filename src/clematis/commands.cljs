@@ -110,24 +110,30 @@
   (when (and (= eval-id (:id @eval-state))
              (:window @eval-state))
     (let [win ^js (:window @eval-state)
-          result (render/parse-result result (:clj-eval @state))]
+          result (render/parse-result result (:clj-eval @state) nil)]
       (->> win .-buffer (render-result-into-buffer result)))))
+
+(defn- notify! [{:keys [type title message]}]
+  (info (str (-> type name (str/upper-case)) ": " title " - " message)))
 
 (defn connect! [host port]
   (when-not (:clj-eval @state)
-    (..
-      (conn/connect! host port
-                     {:on-disconnect on-disconnect!
-                      :on-stdout identity
-                      :on-stderr identity
-                      :editor-data get-vim-data
-                      :on-eval on-end-eval
-                      :on-start-eval on-start-eval})
-      (then (fn [res]
-              (swap! state assoc
-                     :clj-eval (:clj/repl res)
-                     :clj-aux (:clj/aux res)
-                     :commands (:editor/commands res)))))))
+    (.. (conn/connect! host port
+                       {:on-disconnect on-disconnect!
+                        :notify notify!
+                        :get-config (constantly {:project-paths "."
+                                                 :eval-mode :prefer-clj})
+                        :on-stdout identity
+                        :on-stderr identity
+                        :editor-data get-vim-data
+                        :on-eval on-end-eval
+                        :on-start-eval on-start-eval})
+        (then (fn [res]
+                (def r res))))))
+              ; (swap! state assoc
+              ;        :clj-eval (:clj/repl res)
+              ;        :clj-aux (:clj/aux res)
+              ;        :commands (:editor/commands res)))))))
 
 (defn- get-cur-position []
   (let [lines (.. @nvim -buffer (then #(.getLines %)))
