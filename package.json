@@ -4,7 +4,7 @@
   "description": "An example node plugin",
   "main": "clematis.js",
   "devDependencies": {
-    "shadow-cljs": "^2.8.19",
+    "shadow-cljs": "^2.8.83",
     "ws": "^6.2.0"
   },
   "license": "MIT",
