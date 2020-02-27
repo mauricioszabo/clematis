@@ -129,11 +129,10 @@
                         :on-eval on-end-eval
                         :on-start-eval on-start-eval})
         (then (fn [res]
-                (def r res))))))
-              ; (swap! state assoc
-              ;        :clj-eval (:clj/repl res)
-              ;        :clj-aux (:clj/aux res)
-              ;        :commands (:editor/commands res)))))))
+                (swap! state assoc
+                       :clj-eval (:clj/repl res)
+                       :clj-aux (:clj/aux res)
+                       :commands (:editor/commands res)))))))
 
 (defn- get-cur-position []
   (let [lines (.. @nvim -buffer (then #(.getLines %)))
