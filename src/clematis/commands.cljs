@@ -125,7 +125,8 @@
       (->> win .-buffer (render-result-into-buffer result)))))
 
 (defn- notify! [{:keys [type title message]}]
-  (info (str (-> type name (str/upper-case)) ": " title " - " message)))
+  (info (str (-> type name (str/upper-case)) ": " title 
+             (when message " - " message))))
 
 (defn- append-to-console [fragment]
   (swap! state update :output str fragment)
