@@ -18,10 +18,10 @@
     (request "nvim_open_win" #js [buffer enter (clj->js opts)])))
 
 (defn- open-console! []
-  (.command @nvim "vertical botright 50 new [clematis-console]")
+  (.command ^js @nvim "vertical botright 50 new [clematis-console]")
   (p/let [_ (p/delay 100)
           buffer (. @nvim -buffer)]
-    (doto buffer
+    (doto ^js buffer
           (.setOption "modifiable" false)
           (.setOption "swapfile" false)
           (.setOption "buftype" "nofile"))
@@ -158,7 +158,7 @@
       :ok)))
 
 (defn- get-cur-position []
-  (let [lines (.. @nvim -buffer (then #(.getLines %)))
+  (let [lines (.. @nvim -buffer (then #(.getLines ^js %)))
         row (.eval @nvim "line('.')")
         col (.eval @nvim "col('.')")]
     (.. js/Promise

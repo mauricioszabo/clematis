@@ -17,7 +17,7 @@
   (cmds/info "Reloaded Clematis")
   (js/setTimeout #(cmds/info "\n") 4000))
 
-(defn connect! [plugin params]
+(defn connect! [^js plugin params]
   (reset! cmds/nvim (.-nvim plugin))
   (reset! nvim (.-nvim plugin))
   (let [[host port] (js->clj params)]
@@ -29,7 +29,7 @@
 (def eval-block (atom #(main % cmds/evaluate-block)))
 (def expand-view (atom #(main % (fn [] (cmds/expand-block @nvim)))))
 
-(defn- run-tooling-cmd [nvim command]
+(defn- run-tooling-cmd [^js nvim command]
   (def cmd (-> @cmds/state :commands command :command))
   (main nvim (-> @cmds/state :commands command :command)))
 

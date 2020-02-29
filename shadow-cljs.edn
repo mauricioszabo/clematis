@@ -9,7 +9,9 @@
  :jvm-opts ["-Xmx1G" "-Xtune:virtualized"]
  :builds {:vim {:target :node-library
                 :output-to "js/index.js"
+                :compiler-options {:infer-externs :auto}
+                :js-options {:js-provider :shadow
+                             :keep-native-requires true}
                 :output-dir "js/cached"
                 :exports-var clematis.core/exports
-                :devtools {;:before-load-async demo.script/stop
-                           :after-load clematis.core/start}}}}
+                :devtools {:after-load clematis.core/start}}}}
