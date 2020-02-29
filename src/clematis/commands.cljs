@@ -5,6 +5,7 @@
             [repl-tooling.editor-helpers :as helpers]
             [repl-tooling.editor-integration.renderer :as render]
             [repl-tooling.eval :as eval]
+            [clojure.reader :as edn]
             [promesa.core :as p]))
 
 (defonce nvim (atom nil))
@@ -117,16 +118,19 @@
                                      :result result})))
     (replace-buffer buffer-p string)))
 
-(defn- on-end-eval [{:keys [result id]}]
+(defn- on-end-eval [{:keys [result id] :as a}]
   (when (and (= id (:id @eval-state))
              (:window @eval-state))
-    (let [win ^js (:window @eval-state)
-          result (render/parse-result result (:clj-eval @state) nil)]
-      (->> win .-buffer (render-result-into-buffer result)))))
+    (let [win ^js (:window @eval-state)]
+      (if (:literal result)
+        (-> win .-buffer (replace-buffer (-> result :result edn/read-string str/split-lines)))
+        (->> win .-buffer (render-result-into-buffer
+                           (render/parse-result result (:clj-eval @state) nil)))))))
+
 
 (defn- notify! [{:keys [type title message]}]
-  (info (str (-> type name (str/upper-case)) ": " title 
-             (when message " - " message))))
+  (info (str (-> type name (str/upper-case)) ": " title
+             (when message (str " - " message)))))
 
 (defn- append-to-console [fragment]
   (swap! state update :output str fragment)
