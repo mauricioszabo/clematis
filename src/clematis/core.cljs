@@ -30,7 +30,6 @@
 (def expand-view (atom #(main % (fn [] (cmds/expand-block @nvim)))))
 
 (defn- run-tooling-cmd [^js nvim command]
-  (def cmd (-> @cmds/state :commands command :command))
   (main nvim (-> @cmds/state :commands command :command)))
 
 (def exports #js {:connect_socket #(@connect-socket %1 %2 %3)
