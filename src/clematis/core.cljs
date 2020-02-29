@@ -15,8 +15,7 @@
   "Hook to start. Also used as a hook for hot code reload."
   []
   (cmds/info "Reloaded Clematis")
-  (js/setTimeout #(cmds/info "\n")
-                 4000))
+  (js/setTimeout #(cmds/info "\n") 4000))
 
 (defn connect! [plugin params]
   (reset! cmds/nvim (.-nvim plugin))

@@ -86,14 +86,13 @@
 (defonce eval-state (atom {:window nil
                            :id nil}))
 
-(defn- on-start-eval [eval-id range]
-  (def wat eval-id)
+(defn- on-start-eval [{:keys [id]}]
   (when-let [existing-win ^js (:window @eval-state)]
     (.close existing-win))
   (let [window ^js (new-result! @nvim)]
     (. window then #(swap! eval-state assoc
                            :window %
-                           :id eval-id))))
+                           :id id))))
 
 (defn- replace-buffer [buffer-p string]
   (.. buffer-p (then #(replace-buffer-text % string))))
@@ -107,9 +106,8 @@
                                      :result result})))
     (replace-buffer buffer-p string)))
 
-(defn- on-end-eval [result eval-id range]
-  (prn :RES result)
-  (when (and (= eval-id (:id @eval-state))
+(defn- on-end-eval [{:keys [result id]}]
+  (when (and (= id (:id @eval-state))
              (:window @eval-state))
     (let [win ^js (:window @eval-state)
           result (render/parse-result result (:clj-eval @state) nil)]
