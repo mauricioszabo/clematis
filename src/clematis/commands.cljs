@@ -4,7 +4,8 @@
             [repl-tooling.editor-integration.connection :as conn]
             [repl-tooling.editor-helpers :as helpers]
             [repl-tooling.editor-integration.renderer :as render]
-            [repl-tooling.eval :as eval]))
+            [repl-tooling.eval :as eval]
+            [promesa.core :as p]))
 
 (defonce nvim (atom nil))
 
@@ -14,6 +15,16 @@
 (defn new-window [^js nvim buffer enter opts]
   (. nvim
     (request "nvim_open_win" #js [buffer enter (clj->js opts)])))
+
+(defn- open-console! []
+  (.command @nvim "vertical botright 50 new [clematis-console]")
+  (p/let [_ (p/delay 100)
+          buffer (. @nvim -buffer)]
+    (doto buffer
+          (.setOption "modifiable" false)
+          (.setOption "swapfile" false)
+          (.setOption "buftype" "nofile"))
+    buffer))
 
 (defn- replace-buffer-text [^js buffer text]
   (.. (. buffer setOption "modifiable" true)
@@ -116,23 +127,30 @@
 (defn- notify! [{:keys [type title message]}]
   (info (str (-> type name (str/upper-case)) ": " title " - " message)))
 
+(defn- append-to-console [fragment]
+  (swap! state update :output str fragment)
+  (replace-buffer-text (:console @state)
+                       (str/split-lines (:output @state))))
+
 (defn connect! [host port]
   (when-not (:clj-eval @state)
-    (.. (conn/connect! host port
-                       {:on-disconnect on-disconnect!
-                        :notify notify!
-                        :get-config (constantly {:project-paths "."
-                                                 :eval-mode :prefer-clj})
-                        :on-stdout identity
-                        :on-stderr identity
-                        :editor-data get-vim-data
-                        :on-eval on-end-eval
-                        :on-start-eval on-start-eval})
-        (then (fn [res]
-                (swap! state assoc
-                       :clj-eval (:clj/repl @res)
-                       :clj-aux (:clj/aux @res)
-                       :commands (:editor/commands @res)))))))
+    (p/let [res (conn/connect! host port
+                               {:on-disconnect on-disconnect!
+                                :notify notify!
+                                :get-config (constantly {:project-paths "."
+                                                         :eval-mode :prefer-clj})
+                                :on-stdout #(append-to-console %)
+                                :on-stderr #(append-to-console %)
+                                :editor-data get-vim-data
+                                :on-eval on-end-eval
+                                :on-start-eval on-start-eval})
+            _ (swap! state assoc
+                     :clj-eval (:clj/repl @res)
+                     :clj-aux (:clj/aux @res)
+                     :commands (:editor/commands @res))
+            console-buffer (open-console!)]
+      (swap! state assoc :output "" :console console-buffer)
+      :ok)))
 
 (defn- get-cur-position []
   (let [lines (.. @nvim -buffer (then #(.getLines %)))
