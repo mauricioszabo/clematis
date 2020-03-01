@@ -4,7 +4,9 @@
             [repl-tooling.editor-integration.connection :as conn]
             [repl-tooling.editor-helpers :as helpers]
             [repl-tooling.editor-integration.renderer :as render]
-            [repl-tooling.eval :as eval]))
+            [repl-tooling.eval :as eval]
+            [clojure.reader :as edn]
+            [promesa.core :as p]))
 
 (defonce nvim (atom nil))
 
@@ -14,6 +16,16 @@
 (defn new-window [^js nvim buffer enter opts]
   (. nvim
     (request "nvim_open_win" #js [buffer enter (clj->js opts)])))
+
+(defn- open-console! []
+  (.command ^js @nvim "vertical botright 50 new [clematis-console]")
+  (p/let [_ (p/delay 100)
+          buffer (. @nvim -buffer)]
+    (doto ^js buffer
+          (.setOption "modifiable" false)
+          (.setOption "swapfile" false)
+          (.setOption "buftype" "nofile"))
+    buffer))
 
 (defn- replace-buffer-text [^js buffer text]
   (.. (. buffer setOption "modifiable" true)
@@ -86,13 +98,13 @@
 (defonce eval-state (atom {:window nil
                            :id nil}))
 
-(defn- on-start-eval [eval-id range]
+(defn- on-start-eval [{:keys [id]}]
   (when-let [existing-win ^js (:window @eval-state)]
     (.close existing-win))
   (let [window ^js (new-result! @nvim)]
     (. window then #(swap! eval-state assoc
                            :window %
-                           :id eval-id))))
+                           :id id))))
 
 (defn- replace-buffer [buffer-p string]
   (.. buffer-p (then #(replace-buffer-text % string))))
@@ -106,31 +118,47 @@
                                      :result result})))
     (replace-buffer buffer-p string)))
 
-(defn- on-end-eval [result eval-id range]
-  (when (and (= eval-id (:id @eval-state))
+(defn- on-end-eval [{:keys [result id] :as a}]
+  (when (and (= id (:id @eval-state))
              (:window @eval-state))
-    (let [win ^js (:window @eval-state)
-          result (render/parse-result result (:clj-eval @state))]
-      (->> win .-buffer (render-result-into-buffer result)))))
+    (let [win ^js (:window @eval-state)]
+      (if (:literal result)
+        (-> win .-buffer (replace-buffer (-> result :result edn/read-string str/split-lines)))
+        (->> win .-buffer (render-result-into-buffer
+                           (render/parse-result result (:clj-eval @state) nil)))))))
+
+
+(defn- notify! [{:keys [type title message]}]
+  (info (str (-> type name (str/upper-case)) ": " title
+             (when message (str " - " message)))))
+
+(defn- append-to-console [fragment]
+  (swap! state update :output str fragment)
+  (replace-buffer-text (:console @state)
+                       (str/split-lines (:output @state))))
 
 (defn connect! [host port]
   (when-not (:clj-eval @state)
-    (..
-      (conn/connect! host port
-                     {:on-disconnect on-disconnect!
-                      :on-stdout identity
-                      :on-stderr identity
-                      :editor-data get-vim-data
-                      :on-eval on-end-eval
-                      :on-start-eval on-start-eval})
-      (then (fn [res]
-              (swap! state assoc
-                     :clj-eval (:clj/repl res)
-                     :clj-aux (:clj/aux res)
-                     :commands (:editor/commands res)))))))
+    (p/let [res (conn/connect! host port
+                               {:on-disconnect on-disconnect!
+                                :notify notify!
+                                :get-config (constantly {:project-paths "."
+                                                         :eval-mode :prefer-clj})
+                                :on-stdout #(append-to-console %)
+                                :on-stderr #(append-to-console %)
+                                :editor-data get-vim-data
+                                :on-eval on-end-eval
+                                :on-start-eval on-start-eval})
+            _ (swap! state assoc
+                     :clj-eval (:clj/repl @res)
+                     :clj-aux (:clj/aux @res)
+                     :commands (:editor/commands @res))
+            console-buffer (open-console!)]
+      (swap! state assoc :output "" :console console-buffer)
+      :ok)))
 
 (defn- get-cur-position []
-  (let [lines (.. @nvim -buffer (then #(.getLines %)))
+  (let [lines (.. @nvim -buffer (then #(.getLines ^js %)))
         row (.eval @nvim "line('.')")
         col (.eval @nvim "col('.')")]
     (.. js/Promise

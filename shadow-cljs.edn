@@ -3,16 +3,15 @@
 
  :dependencies [[org.clojure/core.async "0.4.490"]
                 [reagent "0.8.1"]
-                [org.clojure/tools.reader "1.3.2"]]
+                [org.clojure/tools.reader "1.3.2"]
+                [repl-tooling "0.4.0"]]
 
- :socket-repl {:port 9000}
- :jvm-opts ["-Xtune:virtualized"
-            "-Xquickstart"
-            "-Xshareclasses"]
-
+ :jvm-opts ["-Xmx1G" "-Xtune:virtualized"]
  :builds {:vim {:target :node-library
                 :output-to "js/index.js"
+                :compiler-options {:infer-externs :auto}
+                :js-options {:js-provider :shadow
+                             :keep-native-requires true}
                 :output-dir "js/cached"
                 :exports-var clematis.core/exports
-                :devtools {;:before-load-async demo.script/stop
-                           :after-load clematis.core/start}}}}
+                :devtools {:after-load clematis.core/start}}}}
