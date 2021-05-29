@@ -5,7 +5,7 @@
   "main": "clematis.js",
   "devDependencies": {
     "shadow-cljs": "^2.8.83",
-    "ws": "^6.2.0"
+    "ws": "^7.4.6"
   },
   "license": "MIT",
   "repository": {
