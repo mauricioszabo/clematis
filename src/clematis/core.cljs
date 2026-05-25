@@ -1,45 +1,50 @@
 (ns clematis.core
-  (:require [clematis.commands :as cmds]))
+  (:require [clematis.commands :as cmds]
+            [promesa.core :as p]
+            [tango.integration.connection :as conn]))
 
-(defonce nvim (atom nil))
+(defonce commands (atom nil))
+(def e (atom nil))
 
-(defn- echo []
-  (. ^js @nvim outWrite "And I say hey,ey,eyeye! \n"))
+#_
+((->> @commands
+      (into {})
+      :disconnect
+      :command))
+(js/console.error "Help?")
+(defn- connect-socket [params]
+  (p/catch
+   (p/let [callbacks {:on-disconnect (fn []
+                                       (cmds/info "Disconnected from REPL"))
+                      ; :on-start-eval (constantly nil)
+                      :on-eval (fn [res] (cmds/info (pr-str res)))
+                      ; :get-console (constantly nil)
+                      :on-diagnostic (constantly nil)
+                      ; :get-rendered-results (constantly nil)
+                      ; :open-editor (constantly nil)
+                      ; :prompt (constantly nil)
+                      :config-directory "/tmp/clematis"
+                      :editor-data (constantly {:range [[0 0] [0 0]]
+                                                :filename "foo.clj"
+                                                :contents "(range 5)"})
+                      :notify #(cmds/info (pr-str %))
+                      :register-commands #(reset! commands %)}
+           state (conn/connect! "localhost" 44129 callbacks)]
+     (def global-state state)
+     (cmds/info "Connected!"))
+   #(do
+      (reset! e %)
+      (js/console.error %)
+      (cmds/info "Error connecting: "))))
 
-(defn main [^js plugin cmd]
-  (reset! nvim (.-nvim plugin))
+; (.-stack
+;  @e)
+
+(defn exports [^js plugin]
+  ; (js/console.log "Trying...")
   (reset! cmds/nvim (.-nvim plugin))
-  (when cmd (cmd)))
+  #js {:connect_socket #(connect-socket %)})
 
-(defn start
-  "Hook to start. Also used as a hook for hot code reload."
-  []
+(defn ^:dev/after-load reload []
   (cmds/info "Reloaded Clematis")
   (js/setTimeout #(cmds/info "\n") 4000))
-
-(defn connect! [^js plugin params]
-  (reset! cmds/nvim (.-nvim plugin))
-  (reset! nvim (.-nvim plugin))
-  (let [[host port] (js->clj params)]
-    (cmds/connect! host (int port))))
-
-(def connect-socket (atom connect!))
-(def eval-selection (atom main))
-(def eval-top-level (atom #(main % cmds/evaluate-top-block)))
-(def eval-block (atom #(main % cmds/evaluate-block)))
-(def expand-view (atom #(main % (fn [] (cmds/expand-block @nvim)))))
-
-(defn- run-tooling-cmd [^js nvim command]
-  (main nvim (-> @cmds/state :commands command :command)))
-
-(def exports #js {:connect_socket #(@connect-socket %1 %2 %3)
-                  :expand_view #(@expand-view %)
-                  :disconnect #(main % cmds/disconnect!)
-
-                  :eval_selection #(@eval-selection %)
-                  :eval_top_level #(@eval-top-level %)
-                  :eval_block #(@eval-block %)
-                  :doc_for_var #(run-tooling-cmd % :doc-for-var)
-                  :load_file #(run-tooling-cmd % :load-file)
-                  :break_evaluation #(run-tooling-cmd % :break-evaluation)
-                  :connect_embedded #(run-tooling-cmd % :connect-embedded)})
